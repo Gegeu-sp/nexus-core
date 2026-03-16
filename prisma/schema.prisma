@@ -1,0 +1,163 @@
+// Nexus Core - Motor Clínico e Orquestrador Cibernético de Carga de Treinamento
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Usuários com dados biométricos estáticos
+model User {
+  id              String   @id @default(cuid())
+  name            String
+  email           String   @unique
+  dateOfBirth     DateTime?
+  gender          String?  // 'male' | 'female' | 'other'
+  heightCm        Float?   // Altura em centímetros
+  weightKg        Float?   // Peso em quilogramas
+  bodyFatPercent  Float?   // Percentual de gordura corporal
+  muscleMassKg    Float?   // Massa muscular em kg
+  restingHR       Int?     // Frequência cardíaca em repouso
+  maxHR           Int?     // Frequência cardíaca máxima
+  trainingLevel   String?  // 'beginner' | 'intermediate' | 'advanced' | 'elite'
+  goals           String?  // JSON array com objetivos
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  conditions         UserCondition[]
+  pharmacologyLogs   PharmacologyLog[]
+  trainingSessions   TrainingSession[]
+  biomarkerLogs      BiomarkerLog[]
+  dailyReadiness     DailyReadiness[]
+}
+
+// Condições médicas/patologias do usuário (Constraints temporais)
+model UserCondition {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  conditionName     String   // Nome da condição
+  conditionType     String?  // 'injury' | 'illness' | 'chronic' | 'other'
+  severity          String?  // 'mild' | 'moderate' | 'severe'
+  diagnosisDate     DateTime?
+  resolvedDate      DateTime?
+  isActive          Boolean  @default(true)
+
+  // Constraints (Restrições específicas)
+  maxHeartRate      Int?     // Limite de frequência cardíaca máxima
+  maxLoadPercent    Float?   // Porcentagem máxima de carga permitida
+  restrictedExercises String? // Lista JSON de exercícios restritos
+  requiredRestDays  Int?     // Dias de descanso obrigatórios por semana
+  minPhaseAngle     Float?   // Ângulo de fase mínimo exigido
+  notes             String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Logs farmacológicos (administração de medicamentos/suplementos)
+model PharmacologyLog {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  substanceName         String   // Nome da substância
+  substanceType         String?  // 'medication' | 'supplement' | 'hormone'
+  dosageMg              Float    // Dosagem em miligramas
+  administrationDate    DateTime @default(now())
+  halfLifeHours         Float    // Meia-vida em horas
+  notes                 String?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// Sessões de treino (Output mecânico)
+model TrainingSession {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  sessionDate           DateTime @default(now())
+  sessionType           String?  // 'strength' | 'hypertrophy' | 'endurance' | 'power' | 'recovery'
+  modality              String?  // 'resistance' | 'cardio' | 'mixed' | 'functional'
+
+  // Métricas principais (Cálculos do motor matemático)
+  totalTonnage          Float?   // Σ (Séries × Repetições × Carga em kg)
+  inolScore             Float?   // INOL - Fadiga Neural
+  acwrRatio             Float?   // Acute:Chronic Workload Ratio
+
+  // Dados detalhados em JSON para flexibilidade
+  exercisesData         String?  // JSON com detalhes dos exercícios
+  perceivedEffort       Int?     // 1-10 (PSE - Perceived Exertion Scale)
+  perceivedRecovery     Int?     // 1-10 (Pós-treino)
+
+  sessionNotes          String?
+  completed             Boolean  @default(true)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId, sessionDate])
+}
+
+// Logs de biomarcadores (Exames de sangue e bioimpedância)
+model BiomarkerLog {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  testDate              DateTime @default(now())
+  testType              String?  // 'blood_work' | 'bioimpedance' | 'combined'
+
+  // Payload estruturado em JSON com todos os biomarcadores
+  // Ex: {"CPK_UL": 350, "LDH_UL": 220, "Phase_Angle": 5.8, "HbA1c_percent": 6.2, "Cortisol_mcg_dL": 15.2}
+  biomarkers            String   // JSON
+
+  // Validações específicas
+  fastingStatus         Boolean? @default(false)
+  postWorkout           Boolean? @default(false)
+  hydrationLevel        String?  // 'optimal' | 'adequate' | 'dehydrated'
+  reliabilityScore      Float?   // 0-1, baseado em condições do teste
+
+  interpretation         String?  // Interpretação clínica
+  recommendations        String?  // Recomendações baseadas nos resultados
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId, testDate])
+}
+
+// Leituras diárias de prontidão (Sono, dor, etc.)
+model DailyReadiness {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  logDate               DateTime @default(now())
+
+  // Métricas de recuperação
+  sleepHours            Float?
+  sleepQuality          Int?     // 1-10
+  muscleSoreness        Int?     // 1-10 (1 = sem dor, 10 = dor extrema)
+  jointPain             Int?     // 1-10
+  energyLevel           Int?     // 1-10
+  mentalState           Int?     // 1-10
+  stressLevel           Int?     // 1-10
+
+  // Perceived Wellness Score (média das métricas subjetivas)
+  wellnessScore         Float?
+
+  notes                 String?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([userId, logDate])
+}
