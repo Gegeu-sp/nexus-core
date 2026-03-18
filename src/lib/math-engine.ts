@@ -450,3 +450,469 @@ export function parseMetricsToNaturalLanguage(metrics: {
 
   return parts.join('\n') || 'Nenhuma métrica disponível.';
 }
+
+// ============================================================
+// EXTENSÕES DO MOTOR MATEMÁTICO — Spec v1.0 (2026-03-18)
+// Todas as adições abaixo são NOVAS. Nenhuma função existente
+// foi alterada.
+// ============================================================
+
+/**
+ * Utilitário anti-NaN/Infinity para todos os cálculos numéricos.
+ * Garante que nunca persistimos valores inválidos no banco.
+ */
+export function safeCalc(value: number, decimals: number = 2): number {
+  if (!isFinite(value) || isNaN(value)) return 0;
+  return Number(value.toFixed(decimals));
+}
+
+// ----- Interfaces de Validação -----
+
+export type ValidationErrorCode =
+  | 'REQUIRED'
+  | 'OUT_OF_RANGE'
+  | 'INVALID_FORMAT'
+  | 'LOGIC_ERROR';
+
+export type ValidationWarningCode =
+  | 'ASYMMETRY'
+  | 'HIGH_VOLUME'
+  | 'HIGH_INTENSITY'
+  | 'SUSPICIOUS_LOAD';
+
+export interface ValidationError {
+  field: string;
+  message: string;
+  code: ValidationErrorCode;
+}
+
+export interface ValidationWarning {
+  field: string;
+  message: string;
+  code: ValidationWarningCode;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+}
+
+// ----- Interfaces de Sessão e Totais -----
+
+export interface WorkoutSessionInput {
+  userId: string;
+  sessionDate: Date;
+  sessionType: 'strength' | 'hypertrophy' | 'endurance' | 'power' | 'recovery';
+  exercises: ExerciseData[];
+  notes?: string;
+}
+
+export interface SessionTotals {
+  totalExercicios: number;
+  totalSeries: number;
+  totalReps: number;
+  volumeTotal: number;     // kg (2 decimais)
+  avgLoadPerSet: number;   // kg/série (2 decimais)
+}
+
+// ----- Parser de Texto Livre -----
+
+/**
+ * Tipo interno para um detalhe de série parseado
+ */
+interface ParsedSetDetail {
+  sets: number;
+  reps: number;   // já resolvido para bilateral (10/10 → 20)
+  weight: number;
+  volume: number;
+}
+
+/**
+ * Resolve reps compostas do tipo "10/10" somando os lados
+ */
+function resolveReps(repsStr: string): number {
+  if (repsStr.includes('/')) {
+    return repsStr.split('/').reduce((sum, part) => sum + parseInt(part.trim(), 10), 0);
+  }
+  return parseInt(repsStr.trim(), 10);
+}
+
+/**
+ * Resolve peso aceitando tanto ponto quanto vírgula como separador decimal
+ */
+function resolveWeight(weightStr: string): number {
+  if (!weightStr) return 0;
+  // Substituir vírgula por ponto e remover caracteres não numéricos exceto ponto
+  const normalized = weightStr.replace(',', '.').replace(/[^0-9.]/g, '');
+  return parseFloat(normalized) || 0;
+}
+
+/**
+ * Regex mestre para reconhecimento de linhas de série.
+ * Suporta:
+ *   - "3x12x20kg"
+ *   - "3x12 20kg"
+ *   - "3x12 - 20kg"
+ *   - "3x12 com 20kg"
+ *   - "3x10/10x8kg"  (bilateral)
+ *   - "3 séries de 12 com 40kg"
+ */
+const SET_LINE_REGEX =
+  /(\d+)\s*(?:x|[xX×]|séries?\s+de)\s*(\d+(?:\/\d+)?)\s*(?:[xX×]|-|com\s+)?\s*(\d+(?:[,\.]\d+)?)\s*(?:kg)?/i;
+
+/**
+ * Tenta parsear uma única linha de série.
+ * Retorna null se a linha não for reconhecida.
+ */
+function parseSetLine(line: string): ParsedSetDetail | null {
+  const match = line.match(SET_LINE_REGEX);
+  if (!match) return null;
+
+  const sets = parseInt(match[1], 10);
+  const reps = resolveReps(match[2]);
+  const weight = resolveWeight(match[3]);
+
+  if (isNaN(sets) || isNaN(reps) || isNaN(weight)) return null;
+
+  return {
+    sets,
+    reps,
+    weight,
+    volume: safeCalc(sets * reps * weight, 2),
+  };
+}
+
+/**
+ * Verifica se uma linha parece ser um nome de exercício
+ * (não contém o padrão NxNxNkg e tem conteúdo textual relevante)
+ */
+function isExerciseName(line: string): boolean {
+  return !SET_LINE_REGEX.test(line) && line.trim().length >= 3;
+}
+
+/**
+ * Parseia texto livre de treino e retorna array de ExerciseData.
+ *
+ * Suporta dois formatos (Estilo A e B conforme QUANTIFICACAO_TREINOS.md):
+ *
+ * Estilo A — nome em linha separada:
+ *   Agachamento livre
+ *   1x12x40kg
+ *   1x10x50kg
+ *
+ * Estilo B — nome e séries na mesma linha:
+ *   Supino 3x12 com 80kg
+ *   Supino inclinado: 3x12x20kg, 1x10x20kg
+ */
+export function parseWorkoutText(rawText: string): ExerciseData[] {
+  const lines = rawText
+    .split(/\r?\n|;/)
+    .map(l => l.trim())
+    .filter(l => l.length > 0);
+
+  const exercises: ExerciseData[] = [];
+  let currentName = '';
+  const currentDetails: ParsedSetDetail[] = [];
+
+  const flushExercise = () => {
+    if (!currentName || currentDetails.length === 0) return;
+
+    // Agregar detalhes em um ExerciseData único (compatível com ExerciseData existente)
+    const totalSets = currentDetails.reduce((s, d) => s + d.sets, 0);
+    const totalRepsAll = currentDetails.reduce((s, d) => s + d.sets * d.reps, 0);
+    const totalVol = currentDetails.reduce((s, d) => s + d.volume, 0);
+
+    // reps médias por série (para compatibilidade com ExerciseData.reps)
+    const avgReps = totalSets > 0 ? Math.round(totalRepsAll / totalSets) : 0;
+    const avgWeight = totalSets > 0 ? safeCalc(totalVol / totalRepsAll, 2) : 0;
+
+    exercises.push({
+      name: currentName,
+      sets: totalSets,
+      reps: avgReps,
+      loadKg: avgWeight,
+    });
+
+    currentDetails.length = 0;
+  };
+
+  for (const line of lines) {
+    // Verificar se a linha contém pelo menos uma série embutida (Estilo B)
+    const inlineMatches = [...line.matchAll(
+      /(\d+)\s*(?:x|[xX×])\s*(\d+(?:\/\d+)?)\s*(?:[xX×]|-|com\s+)?\s*(\d+(?:[,\.]\d+)?)\s*(?:kg)?/gi
+    )];
+
+    if (inlineMatches.length > 0) {
+      // Extrair nome do exercício antes do primeiro match numérico
+      const firstMatchIndex = line.search(SET_LINE_REGEX);
+      const possibleName = line.substring(0, firstMatchIndex).replace(/[:,-]$/, '').trim();
+
+      if (possibleName.length >= 3) {
+        flushExercise();
+        currentName = possibleName;
+      }
+
+      for (const m of inlineMatches) {
+        const sets = parseInt(m[1], 10);
+        const reps = resolveReps(m[2]);
+        const weight = resolveWeight(m[3]);
+        if (!isNaN(sets) && !isNaN(reps) && !isNaN(weight)) {
+          currentDetails.push({
+            sets, reps, weight,
+            volume: safeCalc(sets * reps * weight, 2)
+          });
+        }
+      }
+    } else {
+      // Tenta parsear como linha de série pura (Estilo A — séries abaixo do nome)
+      const detail = parseSetLine(line);
+      if (detail) {
+        currentDetails.push(detail);
+      } else if (isExerciseName(line)) {
+        // É o nome de um novo exercício
+        flushExercise();
+        currentName = line.replace(/[:,-]$/, '').trim();
+      }
+      // Linhas não reconhecidas são silenciosamente ignoradas (comportamento intencional)
+    }
+  }
+
+  // Fechar o último exercício
+  flushExercise();
+
+  return exercises;
+}
+
+// ----- Validações de Consistência -----
+
+/**
+ * Valida um único exercício.
+ * Retorna ValidationResult com erros (bloqueiam) e warnings (informam).
+ */
+export function validateExerciseData(ex: ExerciseData): ValidationResult {
+  const errors: ValidationError[] = [];
+  const warnings: ValidationWarning[] = [];
+
+  // --- Erros Críticos ---
+  if (!ex.name || ex.name.trim().length < 3) {
+    errors.push({
+      field: 'name',
+      code: 'REQUIRED',
+      message: 'Nome do exercício é obrigatório (mínimo 3 caracteres)',
+    });
+  }
+
+  if (!Number.isInteger(ex.sets) || ex.sets < 1 || ex.sets > 20) {
+    errors.push({
+      field: 'sets',
+      code: 'OUT_OF_RANGE',
+      message: `Séries devem ser um inteiro entre 1 e 20 (recebido: ${ex.sets})`,
+    });
+  }
+
+  if (!Number.isInteger(ex.reps) || ex.reps < 1 || ex.reps > 200) {
+    errors.push({
+      field: 'reps',
+      code: 'OUT_OF_RANGE',
+      message: `Repetições devem ser um inteiro entre 1 e 200 (recebido: ${ex.reps})`,
+    });
+  }
+
+  if (typeof ex.loadKg !== 'number' || ex.loadKg < 0 || ex.loadKg > 1000) {
+    errors.push({
+      field: 'loadKg',
+      code: 'OUT_OF_RANGE',
+      message: `Carga deve estar entre 0 e 1000 kg (recebido: ${ex.loadKg})`,
+    });
+  }
+
+  if (
+    ex.percentageOf1RM !== undefined &&
+    (ex.percentageOf1RM <= 0 || ex.percentageOf1RM >= 100)
+  ) {
+    errors.push({
+      field: 'percentageOf1RM',
+      code: 'OUT_OF_RANGE',
+      message: `%1RM deve estar entre 1 e 99 (recebido: ${ex.percentageOf1RM})`,
+    });
+  }
+
+  // --- Warnings ---
+  if (ex.loadKg > 300) {
+    warnings.push({
+      field: 'loadKg',
+      code: 'SUSPICIOUS_LOAD',
+      message: `Carga de ${ex.loadKg} kg é muito alta. Confirme o valor informado.`,
+    });
+  }
+
+  const volume = ex.sets * ex.reps * ex.loadKg;
+  if (isFinite(volume) && volume > 10000) {
+    warnings.push({
+      field: 'volume',
+      code: 'HIGH_VOLUME',
+      message: `Volume por exercício (${volume.toFixed(0)} kg) muito alto. Confirme os dados.`,
+    });
+  }
+
+  return { isValid: errors.length === 0, errors, warnings };
+}
+
+/**
+ * Valida uma sessão de treino completa.
+ * Agrega validações de cada exercício e valida a sessão como um todo.
+ */
+export function validateSession(session: WorkoutSessionInput): ValidationResult {
+  const errors: ValidationError[] = [];
+  const warnings: ValidationWarning[] = [];
+
+  // Validação de data (máximo 24h no futuro)
+  const now = new Date();
+  const futureLimit = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  if (session.sessionDate > futureLimit) {
+    errors.push({
+      field: 'sessionDate',
+      code: 'LOGIC_ERROR',
+      message: 'Data da sessão não pode ser mais de 24h no futuro',
+    });
+  }
+
+  // Validação de exercícios
+  if (!session.exercises || session.exercises.length === 0) {
+    errors.push({
+      field: 'exercises',
+      code: 'REQUIRED',
+      message: 'A sessão deve ter ao menos 1 exercício',
+    });
+  } else if (session.exercises.length > 30) {
+    errors.push({
+      field: 'exercises',
+      code: 'OUT_OF_RANGE',
+      message: `Máximo de 30 exercícios por sessão (recebido: ${session.exercises.length})`,
+    });
+  } else {
+    // Validar cada exercício individualmente
+    session.exercises.forEach((ex, idx) => {
+      const result = validateExerciseData(ex);
+      result.errors.forEach(err => errors.push({ ...err, field: `exercises[${idx}].${err.field}` }));
+      result.warnings.forEach(w => warnings.push({ ...w, field: `exercises[${idx}].${w.field}` }));
+    });
+  }
+
+  // Warnings de sessão
+  const totalSeries = session.exercises.reduce((s, ex) => s + ex.sets, 0);
+  if (totalSeries > 50) {
+    warnings.push({
+      field: 'totalSeries',
+      code: 'HIGH_VOLUME',
+      message: `${totalSeries} séries detectadas. Sessão muito longa? Verifique os dados.`,
+    });
+  }
+
+  const totalVolume = session.exercises.reduce(
+    (s, ex) => s + ex.sets * ex.reps * ex.loadKg, 0
+  );
+  if (totalVolume > 50000) {
+    warnings.push({
+      field: 'volumeTotal',
+      code: 'HIGH_VOLUME',
+      message: `Volume total (${totalVolume.toFixed(0)} kg) extremamente alto. Confirme os dados.`,
+    });
+  }
+
+  return { isValid: errors.length === 0, errors, warnings };
+}
+
+// ----- Regra de Ouro do Backend -----
+
+/**
+ * Recalcula os totais de uma sessão no backend, independentemente
+ * de qualquer cálculo feito no front-end.
+ *
+ * Esta é a "Regra de Ouro" do Motor Matemático:
+ * os totais persistidos são SEMPRE recalculados aqui.
+ */
+export function computeSessionTotals(exercises: ExerciseData[]): SessionTotals {
+  let totalSeries = 0;
+  let totalReps = 0;
+  let volumeTotal = 0;
+
+  for (const ex of exercises) {
+    totalSeries += ex.sets;
+    totalReps   += ex.sets * ex.reps;
+    volumeTotal += ex.sets * ex.reps * ex.loadKg;
+  }
+
+  const avgLoadPerSet = totalSeries > 0 ? volumeTotal / totalSeries : 0;
+
+  return {
+    totalExercicios: exercises.length,
+    totalSeries,
+    totalReps,
+    volumeTotal: safeCalc(volumeTotal, 2),
+    avgLoadPerSet: safeCalc(avgLoadPerSet, 2),
+  };
+}
+
+// ----- Agrupamento por Padrão de Movimento -----
+
+export type MovementPattern = 'squat' | 'hinge' | 'push' | 'pull' | 'carry' | 'other';
+
+const MOVEMENT_KEYWORDS: Record<MovementPattern, string[]> = {
+  squat:  ['agachamento', 'leg press', 'hack squat', 'búlgaro', 'lunge', 'afundo', 'cadeira extensora'],
+  hinge:  ['levantamento terra', 'stiff', 'hip thrust', 'deadlift', 'rdl', 'glúteo', 'cadeira flexora', 'mesa flexora'],
+  push:   ['supino', 'desenvolvimento', 'pushup', 'flexão', 'triceps', 'tríceps', 'arnold', 'elevação frontal', 'elevação lateral'],
+  pull:   ['remada', 'pull-up', 'pulldown', 'puxada', 'rosca', 'bíceps', 'biceps', 'face pull', 'crucifixo reto'],
+  carry:  ['farmer', 'carry', 'prancha', 'plank', 'farmer walk'],
+  other:  [],
+};
+
+/**
+ * Classifica o nome de um exercício em um padrão de movimento
+ * para agrupamento do INOL por grupo muscular.
+ */
+export function getMovementPattern(exerciseName: string): MovementPattern {
+  const lower = exerciseName.toLowerCase();
+  for (const [pattern, keywords] of Object.entries(MOVEMENT_KEYWORDS) as [MovementPattern, string[]][]) {
+    if (pattern === 'other') continue;
+    if (keywords.some(kw => lower.includes(kw))) return pattern;
+  }
+  return 'other';
+}
+
+/**
+ * Calcula o INOL agrupado por padrão de movimento.
+ * Permite identificar qual grupo muscular está mais sobrecarregado.
+ *
+ * Regra de negócio: INOL > 1.5 por padrão de movimento aciona alerta de mitigação.
+ * INOL > 2.0 por padrão é nível crítico.
+ */
+export function calculateINOLByPattern(exercises: ExerciseData[]): {
+  byPattern: Record<MovementPattern, number>;
+  alerts: Array<{ pattern: MovementPattern; inol: number; level: 'warning' | 'critical' }>;
+} {
+  const byPattern: Record<MovementPattern, number> = {
+    squat: 0, hinge: 0, push: 0, pull: 0, carry: 0, other: 0,
+  };
+
+  for (const ex of exercises) {
+    if (ex.percentageOf1RM && ex.percentageOf1RM > 0 && ex.percentageOf1RM < 100) {
+      const inol = (ex.sets * ex.reps) / (100 - ex.percentageOf1RM);
+      const pattern = getMovementPattern(ex.name);
+      byPattern[pattern] = safeCalc(byPattern[pattern] + inol, 3);
+    }
+  }
+
+  const alerts: Array<{ pattern: MovementPattern; inol: number; level: 'warning' | 'critical' }> = [];
+  for (const [pattern, inol] of Object.entries(byPattern) as [MovementPattern, number][]) {
+    if (inol > 2.0) {
+      alerts.push({ pattern, inol, level: 'critical' });
+    } else if (inol > 1.5) {
+      alerts.push({ pattern, inol, level: 'warning' });
+    }
+  }
+
+  return { byPattern, alerts };
+}
+

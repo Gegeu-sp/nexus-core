@@ -89,6 +89,10 @@ model TrainingSession {
 
   // Métricas principais (Cálculos do motor matemático)
   totalTonnage          Float?   // Σ (Séries × Repetições × Carga em kg)
+  totalSeries           Int?     // Σ sets de todos os exercícios
+  totalReps             Int?     // Σ (sets × repsNum) de todos os exercícios
+  avgLoadPerSet         Float?   // volume_total / total_series (carga média por série)
+  ipcPercent            Float?   // Índice de Progressão de Carga vs. última sessão do mesmo tipo
   inolScore             Float?   // INOL - Fadiga Neural
   acwrRatio             Float?   // Acute:Chronic Workload Ratio
 

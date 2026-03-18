@@ -39,6 +39,7 @@ import {
   CheckCircle2,
   Plus,
   User,
+  Search,
   Settings,
   TrendingUp,
   TrendingDown,
@@ -46,6 +47,7 @@ import {
   BrainCircuit,
   Menu,
   X,
+  Shield,
 } from 'lucide-react';
 import { Line, LineChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, ReferenceLine } from 'recharts';
 
@@ -78,6 +80,10 @@ interface TrainingSession {
   sessionDate: string;
   sessionType?: string;
   totalTonnage?: number;
+  totalSeries?: number;
+  totalReps?: number;
+  avgLoadPerSet?: number;
+  ipcPercent?: number | null;
   inolScore?: number;
   acwrRatio?: number;
   perceivedEffort?: number;
@@ -125,6 +131,7 @@ interface DashboardData {
       totalTonnage: number;
       currentWeekTonnage: number;
       avgINOL: number;
+      ipcPercent?: number | null;
       acwr: {
         ratio: number;
         riskLevel: string;
@@ -154,6 +161,8 @@ export default function NexusCoreDashboard() {
   const [activeSection, setActiveSection] = useState<SectionType>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [validationWarnings, setValidationWarnings] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Dialog states
   const [showNewUserDialog, setShowNewUserDialog] = useState(false);
@@ -161,6 +170,7 @@ export default function NexusCoreDashboard() {
   const [showNewPharmaDialog, setShowNewPharmaDialog] = useState(false);
   const [showNewBiomarkerDialog, setShowNewBiomarkerDialog] = useState(false);
   const [showNewConditionDialog, setShowNewConditionDialog] = useState(false);
+  const [showNewReadinessDialog, setShowNewReadinessDialog] = useState(false);
 
   // API Autocomplete states
   const [clinicalQuery, setClinicalQuery] = useState('');
@@ -312,6 +322,23 @@ export default function NexusCoreDashboard() {
     }
   };
 
+  // Helper para Integridade Celular
+  const getCellularIntegrity = () => {
+    if (!dashboardData?.metrics.biomarkers?.biomarkers) return { status: 'N/A', color: 'text-gray-500' };
+    try {
+      const b = JSON.parse(dashboardData.metrics.biomarkers.biomarkers);
+      const cpk = b.CPK_UL || 0;
+      const angle = b.Phase_Angle || 0;
+      
+      if (cpk < 200 && angle > 6.5) return { status: 'Excelente', color: 'text-cyan-400' };
+      if (cpk < 400 && angle > 5.5) return { status: 'Bom', color: 'text-green-400' };
+      if (cpk > 600 || angle < 5.0) return { status: 'Crítico', color: 'text-red-400' };
+      return { status: 'Regular', color: 'text-yellow-400' };
+    } catch (e) {
+      return { status: 'Erro', color: 'text-gray-500' };
+    }
+  };
+
   const createCondition = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedUserId || !selectedCondition) return;
@@ -344,36 +371,62 @@ export default function NexusCoreDashboard() {
     e.preventDefault();
     if (!selectedUserId) return;
 
+    setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
-    const exercises = [
-      {
-        name: formData.get('exercise1_name'),
-        sets: parseInt(formData.get('exercise1_sets') as string),
-        reps: parseInt(formData.get('exercise1_reps') as string),
-        loadKg: parseFloat(formData.get('exercise1_load') as string),
-        percentageOf1RM: parseFloat(formData.get('exercise1_percent') as string),
-      }
-    ].filter(ex => ex.name && ex.sets && ex.reps && ex.loadKg);
-
+    
     const sessionData = {
       sessionDate: formData.get('sessionDate'),
       sessionType: formData.get('sessionType'),
       modality: formData.get('modality'),
-      exercises,
+      workoutText: formData.get('workoutText'),
       perceivedEffort: formData.get('perceivedEffort'),
     };
 
     try {
-      await fetch(`/api/users/${selectedUserId}/training`, {
+      const response = await fetch(`/api/users/${selectedUserId}/training`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sessionData),
       });
-      setShowNewSessionDialog(false);
-      fetchDashboardData(selectedUserId);
-      fetchTrainingSessions(selectedUserId);
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        if (data.validationWarnings && data.validationWarnings.length > 0) {
+          setValidationWarnings(data.validationWarnings);
+        } else {
+          setShowNewSessionDialog(false);
+          setValidationWarnings([]);
+        }
+        fetchDashboardData(selectedUserId);
+        fetchTrainingSessions(selectedUserId);
+      } else {
+        alert('Erro ao registrar sessão: ' + (data.error || 'Erro desconhecido'));
+      }
     } catch (error) {
       console.error('Error creating training session:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const createReadinessLog = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedUserId) return;
+
+    const formData = new FormData(e.currentTarget);
+    const readinessData = Object.fromEntries(formData.entries());
+
+    try {
+      await fetch(`/api/users/${selectedUserId}/readiness`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(readinessData),
+      });
+      setShowNewReadinessDialog(false);
+      fetchDashboardData(selectedUserId);
+    } catch (error) {
+      console.error('Error creating readiness log:', error);
     }
   };
 
@@ -604,8 +657,6 @@ export default function NexusCoreDashboard() {
   const acwrRiskLevel = training?.acwr?.riskLevel || 'safe';
   const avgINOL = training?.avgINOL || 0;
   const wellnessScore = dashboardData?.metrics?.readiness?.wellnessScore;
-
-  // Data hoisted above
 
   const SidebarItem = ({ section, icon, label }: { section: SectionType; icon: React.ReactNode; label: React.ReactNode }) => (
     <button
@@ -997,12 +1048,67 @@ export default function NexusCoreDashboard() {
                     <div className="w-12 h-12 mx-auto mb-3 rounded-lg bg-cyan-500/10 flex items-center justify-center">
                       <Dumbbell className="w-6 h-6 text-cyan-400" />
                     </div>
-                    <div className="text-2xl font-bold gradient-text">
+                    <div className="text-2xl font-bold gradient-text flex items-center justify-center gap-2">
                       {totalTonnage.toLocaleString()}
+                      {dashboardData?.metrics.training.ipcPercent !== undefined && dashboardData.metrics.training.ipcPercent !== null && (
+                        <span className={`text-xs font-medium flex items-center ${dashboardData.metrics.training.ipcPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {dashboardData.metrics.training.ipcPercent >= 0 ? <TrendingUp className="w-3 h-3 mr-0.5" /> : <TrendingDown className="w-3 h-3 mr-0.5" />}
+                          {Math.abs(dashboardData.metrics.training.ipcPercent).toFixed(1)}%
+                        </span>
+                      )}
                     </div>
-                    <div className="text-gray-400 text-sm mt-1">Tonagem Total (kg)</div>
+                    <div className="text-gray-400 text-sm mt-1">Volume de Carga (kg)</div>
                     <div className="text-xs text-green-400 mt-1">
-                      Semana atual: {currentWeekTonnage.toLocaleString()} kg
+                      Total na Semana: {currentWeekTonnage.toLocaleString()} kg
+                    </div>
+                  </div>
+
+                  <div className="cyber-card stat-card p-6 text-center">
+                    <div className="w-12 h-12 mx-auto mb-3 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                      <Zap className="w-6 h-6 text-orange-400" />
+                    </div>
+                    <div className="text-2xl font-bold gradient-text">
+                      {wellnessScore?.toFixed(1) || '0.0'}/10
+                    </div>
+                    <div className="text-gray-400 text-sm mt-1">Nível de Recuperação</div>
+                    <div className="flex flex-col gap-1 mt-1">
+                      <div className="text-xs text-green-400">Prontidão Diária</div>
+                      <Dialog open={showNewReadinessDialog} onOpenChange={setShowNewReadinessDialog}>
+                        <DialogTrigger asChild>
+                          <Button variant="link" size="sm" className="h-auto p-0 text-[10px] text-cyan-400 hover:text-cyan-300">
+                            + Atualizar Prontidão
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-[#111827] border-[#1f2937] text-white">
+                          <DialogHeader>
+                            <DialogTitle>📊 Log de Prontidão Diária</DialogTitle>
+                            <DialogDescription className="text-gray-400">
+                              Responda para calcular seu Nível de Recuperação de amanhã
+                            </DialogDescription>
+                          </DialogHeader>
+                          <form onSubmit={createReadinessLog} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <Label className="text-xs text-gray-400">Sono (1-10)</Label>
+                                <Input name="sleepQuality" type="number" min="1" max="10" required className="bg-[#0d1117] border-[#1f2937]" />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-gray-400">Energia (1-10)</Label>
+                                <Input name="energyLevel" type="number" min="1" max="10" required className="bg-[#0d1117] border-[#1f2937]" />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-gray-400">Stress (1-10)</Label>
+                                <Input name="stressLevel" type="number" min="1" max="10" required className="bg-[#0d1117] border-[#1f2937]" />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-gray-400">Humor (1-10)</Label>
+                                <Input name="mentalState" type="number" min="1" max="10" required className="bg-[#0d1117] border-[#1f2937]" />
+                              </div>
+                            </div>
+                            <Button type="submit" className="w-full cyber-btn">Salvar Log</Button>
+                          </form>
+                        </DialogContent>
+                      </Dialog>
                     </div>
                   </div>
 
@@ -1013,7 +1119,7 @@ export default function NexusCoreDashboard() {
                     <div className="text-2xl font-bold gradient-text">
                       {acwrRatio.toFixed(2)}
                     </div>
-                    <div className="text-gray-400 text-sm mt-1">ACWR</div>
+                    <div className="text-gray-400 text-sm mt-1">Risco de Lesão (ACWR)</div>
                     <span className={getRiskBadgeColor(acwrRiskLevel)}>
                       {getRiskLabel(acwrRiskLevel)}
                     </span>
@@ -1026,19 +1132,21 @@ export default function NexusCoreDashboard() {
                     <div className="text-2xl font-bold gradient-text">
                       {avgINOL.toFixed(3)}
                     </div>
-                    <div className="text-gray-400 text-sm mt-1">INOL Médio</div>
-                    <div className="text-xs text-green-400 mt-1">Fadiga Neural</div>
+                    <div className="text-gray-400 text-sm mt-1">Intensidade do Treino</div>
+                    <div className="text-xs text-green-400 mt-1">Fadiga do Sistema Nervoso</div>
                   </div>
 
-                  <div className="cyber-card stat-card p-6 text-center">
-                    <div className="w-12 h-12 mx-auto mb-3 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                      <TrendingUp className="w-6 h-6 text-orange-400" />
+
+                  {/* Novo Card: Integridade Celular */}
+                  <div className="cyber-card stat-card p-6 text-center border-b-2 border-b-cyan-500/30">
+                    <div className="w-12 h-12 mx-auto mb-3 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+                      <Shield className="w-6 h-6 text-cyan-400" />
                     </div>
-                    <div className="text-2xl font-bold gradient-text">
-                      {wellnessScore?.toFixed(1) || 'N/A'}/10
+                    <div className={`text-2xl font-bold ${getCellularIntegrity().color}`}>
+                      {getCellularIntegrity().status}
                     </div>
-                    <div className="text-gray-400 text-sm mt-1">Wellness Score</div>
-                    <div className="text-xs text-green-400 mt-1">Prontidão Diária</div>
+                    <div className="text-gray-400 text-sm mt-1">Integridade Celular</div>
+                    <div className="text-xs text-cyan-400/70 mt-1">CPK + Ângulo de Fase</div>
                   </div>
                 </div>
 
@@ -1189,7 +1297,12 @@ export default function NexusCoreDashboard() {
                           </p>
                           <p className="text-gray-400 text-sm">
                             {new Date(session.sessionDate).toLocaleDateString('pt-BR')} •
-                            Tonagem: {session.totalTonnage?.toFixed(0) || 0} kg
+                            Tonagem: {session.totalTonnage?.toFixed(0) || 0} kg 
+                            {session.ipcPercent !== undefined && session.ipcPercent !== null && (
+                              <span className={`ml-2 ${session.ipcPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {session.ipcPercent >= 0 ? '↑' : '↓'} {Math.abs(session.ipcPercent).toFixed(1)}%
+                              </span>
+                            )}
                           </p>
                         </div>
                         <div className="text-right">
@@ -1269,36 +1382,51 @@ export default function NexusCoreDashboard() {
                           </Select>
                         </div>
                         <div className="border border-[#1f2937] rounded-lg p-4 space-y-3">
-                          <Label className="text-base font-semibold text-white">Exercício Principal</Label>
-                          <div className="grid grid-cols-3 gap-3">
-                            <div className="col-span-3">
-                              <Label htmlFor="exercise1_name" className="text-gray-300">Nome do Exercício</Label>
-                              <Input id="exercise1_name" name="exercise1_name" required className="bg-[#0d1117] border-[#1f2937] text-white" />
-                            </div>
-                            <div>
-                              <Label htmlFor="exercise1_sets" className="text-gray-300">Séries</Label>
-                              <Input id="exercise1_sets" name="exercise1_sets" type="number" required className="bg-[#0d1117] border-[#1f2937] text-white" />
-                            </div>
-                            <div>
-                              <Label htmlFor="exercise1_reps" className="text-gray-300">Repetições</Label>
-                              <Input id="exercise1_reps" name="exercise1_reps" type="number" required className="bg-[#0d1117] border-[#1f2937] text-white" />
-                            </div>
-                            <div>
-                              <Label htmlFor="exercise1_load" className="text-gray-300">Carga (kg)</Label>
-                              <Input id="exercise1_load" name="exercise1_load" type="number" step="0.5" required className="bg-[#0d1117] border-[#1f2937] text-white" />
-                            </div>
-                            <div>
-                              <Label htmlFor="exercise1_percent" className="text-gray-300">% 1RM (opcional)</Label>
-                              <Input id="exercise1_percent" name="exercise1_percent" type="number" step="1" className="bg-[#0d1117] border-[#1f2937] text-white" />
-                            </div>
+                          <Label htmlFor="workoutText" className="text-base font-semibold text-white">Conteúdo do Treino (Entrada Inteligente)</Label>
+                          <p className="text-[10px] text-cyan-400/70 mb-2">Use o formato: "Exercício Séries x Reps @ Carga" (um por linha)</p>
+                          <textarea
+                            id="workoutText"
+                            name="workoutText"
+                            placeholder="Ex:&#10;Supino Reto 4x10 @ 80kg&#10;Agachamento 3x12 @ 100kg&#10;Rosca Direta 3x15 @ 30kg"
+                            required
+                            className="w-full min-h-[120px] bg-[#0d1117] border-[#1f2937] text-white rounded-md p-3 text-sm focus:border-cyan-500/50 outline-none font-mono"
+                          ></textarea>
+                          <div className="flex gap-2 flex-wrap">
+                            <span className="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/20">Supino 4x10 @ 80</span>
+                            <span className="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/20">Agachamento 3x12 100kg</span>
                           </div>
                         </div>
                         <div>
                           <Label htmlFor="perceivedEffort" className="text-gray-300">Esforço Percebido (1-10)</Label>
                           <Input id="perceivedEffort" name="perceivedEffort" type="number" min="1" max="10" className="bg-[#0d1117] border-[#1f2937] text-white" />
                         </div>
-                        <Button type="submit" className="w-full cyber-btn">
-                          Registrar Sessão
+                        {validationWarnings.length > 0 && (
+                          <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-lg space-y-2">
+                            <div className="flex items-center gap-2 text-yellow-500 font-bold text-sm">
+                              <AlertCircle className="w-4 h-4" />
+                              Avisos de Validação
+                            </div>
+                            <ul className="text-xs text-yellow-200/80 list-disc list-inside">
+                              {validationWarnings.map((warn, i) => (
+                                <li key={i}>{warn.message} ({warn.code})</li>
+                              ))}
+                            </ul>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="sm" 
+                              className="w-full text-yellow-500 hover:bg-yellow-500/10 text-xs"
+                              onClick={() => {
+                                setShowNewSessionDialog(false);
+                                setValidationWarnings([]);
+                              }}
+                            >
+                              Entendido e Fechar
+                            </Button>
+                          </div>
+                        )}
+                        <Button type="submit" disabled={isSubmitting} className="w-full cyber-btn">
+                          {isSubmitting ? 'Processando...' : 'Registrar Sessão'}
                         </Button>
                       </form>
                     </DialogContent>
@@ -1317,13 +1445,13 @@ export default function NexusCoreDashboard() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-medium text-white">INOL: {session.inolScore?.toFixed(3)}</div>
+                        <div className="text-sm font-medium text-white">Intensidade: {session.inolScore?.toFixed(3)}</div>
                         {session.acwrRatio && (
                           <span className={getRiskBadgeColor(
                             session.acwrRatio > 1.5 ? 'very_high' :
                             session.acwrRatio > 1.2 ? 'high' : 'safe'
                           )}>
-                            ACWR: {session.acwrRatio.toFixed(2)}
+                            Risco: {session.acwrRatio.toFixed(2)}
                           </span>
                         )}
                       </div>
