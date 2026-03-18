@@ -26,15 +26,15 @@ O Nexus Core é um sistema que atua como um orquestrador de fisiologia, quantifi
 - **Cortisol:** Nível de estresse
 - Sistema automático de alertas e recomendações
 
-### 4. 😊 Prontidão Diária
-- Monitoramento de sono e qualidade do descanso
-- Avaliação de dor muscular e energia
-- Wellness Score calculado automaticamente
+### 4. 😊 Prontidão Diária e Recuperação
+- Monitoramento de sono, qualidade do descanso, energia e estresse.
+- **Nível de Recuperação (Wellness Score)** calculado em tempo real.
+- Interface dedicada para registro rápido de prontidão matinal na aba Overview.
 
-### 5. 📊 Dashboard Inteligente
-- Métricas consolidadas em tempo real
-- Parser automático para linguagem natural (WhatsApp)
-- Sistema de alertas por nível de risco
+### 5. 📊 Dashboard Inteligente (Linguagem Amigável)
+- Métricas traduzidas para termos leigos: Volume de Carga, Risco de Lesão, Intensidade do Treino.
+- Resumo automático em linguagem natural para exportação (WhatsApp).
+- Sistema de alertas visuais dinâmicos conforme o estado de prontidão.
 
 ## 🛠️ Stack Tecnológico
 
@@ -298,13 +298,11 @@ bun run lint
 - [ ] Integração com wearables
 - [ ] Machine Learning para previsão de performance
 
-## 📄 Licença
+## 👨‍💻 Autor
 
-Este projeto é desenvolvido como parte do Nexus Core - Sistema de Orquestração de Treinamento Físico.
-
-## 🤝 Contribuindo
-
-Contribuições são bem-vindas! Por favor, abra uma issue ou pull request para melhorias.
+**Argeu Rodrigues**  
+Estudante de Análise e Desenvolvimento de Sistemas (3º Semestre)  
+*Universidade Anhembi Morumbi*  
 
 ---
 
