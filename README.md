@@ -94,6 +94,7 @@ O desenvolvimento do Nexus Core segue uma esteira de *Continuous Planning*. As p
 - [ ] **Modelagem Dinâmica:** Transição parcial de heurísticas estáticas (fórmulas matemáticas fixas) para modelos de *Machine Learning* (Redes Neurais/Regressão).
 - [ ] **Treinamento Contínuo:** O algoritmo passará a aprender os limiares de tolerância à carga específicos de cada paciente (*Patient-Specific Baselines*), personalizando ainda mais o acionamento dos alertas preditivos.
 
+```
 ---
 
 ### 👨‍💻 Autor & Arquiteto Principal
