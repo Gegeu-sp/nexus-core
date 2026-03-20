@@ -173,14 +173,19 @@ export async function POST(
       }
     });
 
+    // Trigger asynchronous predictive sweep (Fire and Forget)
+    // We dynamically import to avoid circular or strict blocking dependencies here
+    import('@/lib/engine/predictiveEngine').then(({ predictiveEngine }) => {
+      predictiveEngine.runSyllabusSweep(id).catch(err => console.error(err));
+    });
+
     return NextResponse.json({
-      session,
+      message: 'Treino salvo com sucesso!',
+      session: dbSession,
       metrics: {
-        sessionTotals,
-        inol: inolResult,
-        inolByPattern,
-        acwr: acwrResult,
-        ipcPercent,
+        totalTonnage,
+        inolScore: inolResult.total,
+        acwrRatio
       },
       // Warnings não bloqueiam — apenas informam
       validationWarnings: validation.warnings,

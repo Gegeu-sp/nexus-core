@@ -5,163 +5,300 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-// Usuários com dados biométricos estáticos
+// Clínicas/Organizações para Multi-Tenant B2B2C
+model Clinic {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  users     User[]
+}
+
+// Usuários com dados biométricos e Auth.js
 model User {
-  id              String   @id @default(cuid())
-  name            String
-  email           String   @unique
-  dateOfBirth     DateTime?
-  gender          String?  // 'male' | 'female' | 'other'
-  heightCm        Float?   // Altura em centímetros
-  weightKg        Float?   // Peso em quilogramas
-  bodyFatPercent  Float?   // Percentual de gordura corporal
-  muscleMassKg    Float?   // Massa muscular em kg
-  restingHR       Int?     // Frequência cardíaca em repouso
-  maxHR           Int?     // Frequência cardíaca máxima
-  trainingLevel   String?  // 'beginner' | 'intermediate' | 'advanced' | 'elite'
-  goals           String?  // JSON array com objetivos
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String    @id @default(cuid())
+  name           String?
+  email          String?   @unique
+  emailVerified  DateTime?
+  image          String?
+  password       String?   // Para CredentialsProvider (se necessário em homog/testes)
+  
+  role           String    @default("ATHLETE") // "ATHLETE" | "CLINICIAN" | "ADMIN" (SQLite n suporta Native Enums)
+  
+  clinicId       String?
+  clinic         Clinic?   @relation(fields: [clinicId], references: [id])
 
-  conditions         UserCondition[]
-  pharmacologyLogs   PharmacologyLog[]
-  trainingSessions   TrainingSession[]
-  biomarkerLogs      BiomarkerLog[]
-  dailyReadiness     DailyReadiness[]
+  // --- Auth.js Relations ---
+  accounts       Account[]
+  sessions       Session[]
+  // Authenticator Authenticator[] // Uncomment if using WebAuthn
+
+  // --- Nexus Core Fields ---
+  dateOfBirth    DateTime?
+  gender         String? // 'male' | 'female' | 'other'
+  heightCm       Float? // Altura em centímetros
+  weightKg       Float? // Peso em quilogramas
+  bodyFatPercent Float? // Percentual de gordura corporal
+  muscleMassKg   Float? // Massa muscular em kg
+  restingHR      Int? // Frequência cardíaca em repouso
+  maxHR          Int? // Frequência cardíaca máxima
+  trainingLevel  String? // 'beginner' | 'intermediate' | 'advanced' | 'elite'
+  goals          String? // JSON array com objetivos
+  notes          String?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  conditions       UserCondition[]
+  pharmacologyLogs PharmacologyLog[]
+  trainingSessions TrainingSession[]
+  biomarkerLogs    BiomarkerLog[]
+  dailyReadiness   DailyReadiness[]
+
+  biomarkerObservations BiomarkerObservation[]
+  predictiveAlerts      PredictiveSyndromeAlert[]
 }
+
+// --- NextAuth Core Tables ---
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
 
 // Condições médicas/patologias do usuário (Constraints temporais)
 model UserCondition {
-  id                String   @id @default(cuid())
-  userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  conditionName     String   // Nome da condição
-  conditionType     String?  // 'injury' | 'illness' | 'chronic' | 'other'
-  severity          String?  // 'mild' | 'moderate' | 'severe'
-  diagnosisDate     DateTime?
-  resolvedDate      DateTime?
-  isActive          Boolean  @default(true)
+  conditionName String // Nome da condição
+  conditionType String? // 'injury' | 'illness' | 'chronic' | 'other'
+  severity      String? // 'mild' | 'moderate' | 'severe'
+  diagnosisDate DateTime?
+  resolvedDate  DateTime?
+  isActive      Boolean   @default(true)
 
   // Constraints (Restrições específicas)
-  maxHeartRate      Int?     // Limite de frequência cardíaca máxima
-  maxLoadPercent    Float?   // Porcentagem máxima de carga permitida
+  maxHeartRate        Int? // Limite de frequência cardíaca máxima
+  maxLoadPercent      Float? // Porcentagem máxima de carga permitida
   restrictedExercises String? // Lista JSON de exercícios restritos
-  requiredRestDays  Int?     // Dias de descanso obrigatórios por semana
-  minPhaseAngle     Float?   // Ângulo de fase mínimo exigido
-  notes             String?
+  requiredRestDays    Int? // Dias de descanso obrigatórios por semana
+  minPhaseAngle       Float? // Ângulo de fase mínimo exigido
+  notes               String?
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Logs farmacológicos (administração de medicamentos/suplementos)
 model PharmacologyLog {
-  id                    String   @id @default(cuid())
-  userId                String
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  substanceName         String   // Nome da substância
-  substanceType         String?  // 'medication' | 'supplement' | 'hormone'
-  dosageMg              Float    // Dosagem em miligramas
-  administrationDate    DateTime @default(now())
-  halfLifeHours         Float    // Meia-vida em horas
-  notes                 String?
+  // FHIR / Dicionário Clínico Mapping
+  dictionaryId   String?
+  drugDictionary ClinicalDrugDictionary? @relation(fields: [dictionaryId], references: [id])
 
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  substanceName      String // Nome da substância (fallback)
+  substanceType      String? // 'medication' | 'supplement' | 'hormone'
+  dosageMg           Float // Dosagem em miligramas
+  administrationDate DateTime @default(now())
+  halfLifeHours      Float // Meia-vida em horas
+  notes              String?
+
+  // Pharmacodynamics impact
+  systemicImpactFactor Float? // Quociente de impacto orgânico (0-1) calculado pelo motor preditivo
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Cache interno de drogas, compatível com RxNorm/ATC (FHIR)
+model ClinicalDrugDictionary {
+  id               String  @id @default(cuid())
+  drugBankId       String? @unique
+  rxcui            String? @unique // RxNorm Concept Unique Identifier
+  name             String
+  targetReceptors  String? // JSON Array (ex: ["AR", "GABA-A"])
+  clearanceRoute   String? // 'renally' | 'hepatically' | 'both'
+  pharmacodynamics String? // JSON descrevendo mecanismo de ação clínico
+
+  logs PharmacologyLog[]
 }
 
 // Sessões de treino (Output mecânico)
 model TrainingSession {
-  id                    String   @id @default(cuid())
-  userId                String
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  sessionDate           DateTime @default(now())
-  sessionType           String?  // 'strength' | 'hypertrophy' | 'endurance' | 'power' | 'recovery'
-  modality              String?  // 'resistance' | 'cardio' | 'mixed' | 'functional'
+  sessionDate DateTime @default(now())
+  sessionType String? // 'strength' | 'hypertrophy' | 'endurance' | 'power' | 'recovery'
+  modality    String? // 'resistance' | 'cardio' | 'mixed' | 'functional'
 
   // Métricas principais (Cálculos do motor matemático)
-  totalTonnage          Float?   // Σ (Séries × Repetições × Carga em kg)
-  totalSeries           Int?     // Σ sets de todos os exercícios
-  totalReps             Int?     // Σ (sets × repsNum) de todos os exercícios
-  avgLoadPerSet         Float?   // volume_total / total_series (carga média por série)
-  ipcPercent            Float?   // Índice de Progressão de Carga vs. última sessão do mesmo tipo
-  inolScore             Float?   // INOL - Fadiga Neural
-  acwrRatio             Float?   // Acute:Chronic Workload Ratio
+  totalTonnage  Float? // Σ (Séries × Repetições × Carga em kg)
+  totalSeries   Int? // Σ sets de todos os exercícios
+  totalReps     Int? // Σ (sets × repsNum) de todos os exercícios
+  avgLoadPerSet Float? // volume_total / total_series (carga média por série)
+  ipcPercent    Float? // Índice de Progressão de Carga vs. última sessão do mesmo tipo
+  inolScore     Float? // INOL - Fadiga Neural
+  acwrRatio     Float? // Acute:Chronic Workload Ratio
 
   // Dados detalhados em JSON para flexibilidade
-  exercisesData         String?  // JSON com detalhes dos exercícios
-  perceivedEffort       Int?     // 1-10 (PSE - Perceived Exertion Scale)
-  perceivedRecovery     Int?     // 1-10 (Pós-treino)
+  exercisesData     String? // JSON com detalhes dos exercícios
+  perceivedEffort   Int? // 1-10 (PSE - Perceived Exertion Scale)
+  perceivedRecovery Int? // 1-10 (Pós-treino)
 
-  sessionNotes          String?
-  completed             Boolean  @default(true)
+  sessionNotes String?
+  completed    Boolean @default(true)
 
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, sessionDate])
 }
 
 // Logs de biomarcadores (Exames de sangue e bioimpedância)
 model BiomarkerLog {
-  id                    String   @id @default(cuid())
-  userId                String
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  testDate              DateTime @default(now())
-  testType              String?  // 'blood_work' | 'bioimpedance' | 'combined'
+  testDate DateTime @default(now())
+  testType String? // 'blood_work' | 'bioimpedance' | 'combined'
 
   // Payload estruturado em JSON com todos os biomarcadores
   // Ex: {"CPK_UL": 350, "LDH_UL": 220, "Phase_Angle": 5.8, "HbA1c_percent": 6.2, "Cortisol_mcg_dL": 15.2}
-  biomarkers            String   // JSON
+  biomarkers String // JSON
 
   // Validações específicas
-  fastingStatus         Boolean? @default(false)
-  postWorkout           Boolean? @default(false)
-  hydrationLevel        String?  // 'optimal' | 'adequate' | 'dehydrated'
-  reliabilityScore      Float?   // 0-1, baseado em condições do teste
+  fastingStatus    Boolean? @default(false)
+  postWorkout      Boolean? @default(false)
+  hydrationLevel   String? // 'optimal' | 'adequate' | 'dehydrated'
+  reliabilityScore Float? // 0-1, baseado em condições do teste
 
-  interpretation         String?  // Interpretação clínica
-  recommendations        String?  // Recomendações baseadas nos resultados
+  interpretation  String? // Interpretação clínica
+  recommendations String? // Recomendações baseadas nos resultados
 
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  // Relação com observações individuais (Mapeamento FHIR)
+  observations BiomarkerObservation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, testDate])
 }
 
+// Mapeamento FHIR para a entidade Observation (Granular)
+model BiomarkerObservation {
+  id      String   @id @default(cuid())
+  userId  String
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logDate DateTime @default(now())
+
+  loincCode     String? // LOINC Code padronizado mundialmente
+  biomarkerName String // Ex: Creatina Kinase (CPK)
+  value         Float
+  unit          String // Ex: U/L
+
+  methodology String? // 'blood' | 'bioimpedance' | 'saliva'
+
+  // Link opcional para o log agrupado
+  sourceLogId String?
+  sourceLog   BiomarkerLog? @relation(fields: [sourceLogId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, logDate])
+}
+
 // Leituras diárias de prontidão (Sono, dor, etc.)
 model DailyReadiness {
-  id                    String   @id @default(cuid())
-  userId                String
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  logDate               DateTime @default(now())
+  logDate DateTime @default(now())
 
   // Métricas de recuperação
-  sleepHours            Float?
-  sleepQuality          Int?     // 1-10
-  muscleSoreness        Int?     // 1-10 (1 = sem dor, 10 = dor extrema)
-  jointPain             Int?     // 1-10
-  energyLevel           Int?     // 1-10
-  mentalState           Int?     // 1-10
-  stressLevel           Int?     // 1-10
+  sleepHours     Float?
+  sleepQuality   Int? // 1-10
+  muscleSoreness Int? // 1-10 (1 = sem dor, 10 = dor extrema)
+  jointPain      Int? // 1-10
+  energyLevel    Int? // 1-10
+  mentalState    Int? // 1-10
+  stressLevel    Int? // 1-10
 
   // Perceived Wellness Score (média das métricas subjetivas)
-  wellnessScore         Float?
+  wellnessScore Float?
 
-  notes                 String?
+  notes String?
 
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, logDate])
+}
+
+// Motor Preditivo e Vigilância Patológica Dinâmica (FHIR DetectedIssue / ClinicalImpression)
+model PredictiveSyndromeAlert {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  syndromeName String // Ex: "Subclinical Rhabdomyolysis Risk" ou "Endocrine Exhaustion"
+  snomedCode   String? // Concept ID do SNOMED-CT
+  probability  Float // % chance (Calculado via cruzamento: Volume + Pathos + Farma)
+  severity     String // 'low' | 'moderate' | 'high' | 'critical'
+
+  // Fatores Causais Registrados em JSON (Snapshots probatórios)
+  contributingFactors String // JSON Array (ex: ["ACWR > 1.8", "CPK Rising", "Statin Active"])
+
+  isActive  Boolean  @default(true)
+  timestamp DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, isActive])
 }

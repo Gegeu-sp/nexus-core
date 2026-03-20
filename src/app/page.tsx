@@ -1133,7 +1133,19 @@ export default function NexusCoreDashboard() {
                       {avgINOL.toFixed(3)}
                     </div>
                     <div className="text-gray-400 text-sm mt-1">Intensidade do Treino</div>
-                    <div className="text-xs text-green-400 mt-1">Fadiga do Sistema Nervoso</div>
+                    <div className={`text-xs mt-1 ${
+                      avgINOL === 0 ? 'text-gray-500' :
+                      avgINOL < 0.4 ? 'text-green-400' :
+                      avgINOL < 1.0 ? 'text-cyan-400' :
+                      avgINOL < 2.0 ? 'text-orange-400' :
+                      'text-red-400'
+                    }`}>
+                      {avgINOL === 0 ? 'Sistema Nervoso: Sem Dados' :
+                       avgINOL < 0.4 ? 'Sistema Nervoso: Recuperado' :
+                       avgINOL < 1.0 ? 'Sistema Nervoso: Otimizado' :
+                       avgINOL < 2.0 ? 'Sistema Nervoso: Fadigado' :
+                       'Sistema Nervoso: Exausto'}
+                    </div>
                   </div>
 
 

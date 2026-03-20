@@ -41,6 +41,15 @@ export function calculateTonnage(exercises: ExerciseData[]): number {
 }
 
 /**
+ * Estima o %1RM com base nas repetições realizadas, assumindo um esforço próximo à falha (RIR ~2)
+ * Utiliza a fórmula de Epley invertida.
+ */
+export function estimate1RMPercentage(reps: number): number {
+  const estimatedMaxReps = reps > 0 ? reps + 2 : 1; 
+  return 100 / (1 + 0.0333 * estimatedMaxReps);
+}
+
+/**
  * Calcula o INOL (Intensity Number of Lifts)
  * Quantifica o desgaste do Sistema Nervoso Central
  * Fórmula: Repetições / (100 - %1RM)
@@ -51,8 +60,13 @@ export function calculateINOL(exercises: ExerciseData[]): { total: number; byExe
   const byExercise: Array<{ name: string; inol: number }> = [];
 
   for (const exercise of exercises) {
-    if (exercise.percentageOf1RM && exercise.percentageOf1RM < 100) {
-      const inol = (exercise.sets * exercise.reps) / (100 - exercise.percentageOf1RM);
+    let p1RM = exercise.percentageOf1RM;
+    if (!p1RM || p1RM <= 0) {
+      p1RM = estimate1RMPercentage(exercise.reps);
+    }
+
+    if (p1RM > 0 && p1RM < 100) {
+      const inol = (exercise.sets * exercise.reps) / (100 - p1RM);
       byExercise.push({
         name: exercise.name,
         inol: Number(inol.toFixed(3))
@@ -897,8 +911,13 @@ export function calculateINOLByPattern(exercises: ExerciseData[]): {
   };
 
   for (const ex of exercises) {
-    if (ex.percentageOf1RM && ex.percentageOf1RM > 0 && ex.percentageOf1RM < 100) {
-      const inol = (ex.sets * ex.reps) / (100 - ex.percentageOf1RM);
+    let p1RM = ex.percentageOf1RM;
+    if (!p1RM || p1RM <= 0) {
+      p1RM = estimate1RMPercentage(ex.reps);
+    }
+
+    if (p1RM > 0 && p1RM < 100) {
+      const inol = (ex.sets * ex.reps) / (100 - p1RM);
       const pattern = getMovementPattern(ex.name);
       byPattern[pattern] = safeCalc(byPattern[pattern] + inol, 3);
     }

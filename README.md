@@ -1,309 +1,112 @@
 # 🧬 Nexus Core
-**Motor Clínico e Orquestrador Cibernético de Carga de Treinamento**
+**Motor Clínico Preditivo e Digital Twin de Performance Biomecânica**
 
-Sistema completo de orquestração de treinamento físico que integra engenharia de software e ciência de dados para individualização extrema do treinamento.
-
-## 🎯 Visão Geral
-
-O Nexus Core é um sistema que atua como um orquestrador de fisiologia, quantificando o estresse mecânico (treino), cruzando com a farmacocinética (dosagem de medicamentos) e validando a resposta fisiológica através de biomarcadores objetivos (exames de sangue e bioimpedância).
-
-## ✨ Funcionalidades Principais
-
-### 1. 🏋️ Motor Matemático de Treinamento
-- **Volume Load (Tonagem):** Σ (Séries × Repetições × Carga em kg)
-- **ACWR (Acute:Chronic Workload Ratio):** Análise de risco de lesão com alertas automáticos
-- **INOL (Intensity Number of Lifts):** Quantificação da fadiga do Sistema Nervoso Central
-
-### 2. 💊 Farmacocinética em Tempo Real
-- Cálculo de concentração plasmática baseado em meia-vida
-- Avaliação de impacto na performance física
-- Recomendações para treinos de força máxima
-
-### 3. 🧪 Análise de Biomarcadores
-- **CPK (Creatinofosfoquinase):** Dano muscular
-- **Ângulo de Fase:** Integridade da membrana celular
-- **HbA1c:** Controle glicêmico
-- **Cortisol:** Nível de estresse
-- Sistema automático de alertas e recomendações
-
-### 4. 😊 Prontidão Diária e Recuperação
-- Monitoramento de sono, qualidade do descanso, energia e estresse.
-- **Nível de Recuperação (Wellness Score)** calculado em tempo real.
-- Interface dedicada para registro rápido de prontidão matinal na aba Overview.
-
-### 5. 📊 Dashboard Inteligente (Linguagem Amigável)
-- Métricas traduzidas para termos leigos: Volume de Carga, Risco de Lesão, Intensidade do Treino.
-- Resumo automático em linguagem natural para exportação (WhatsApp).
-- Sistema de alertas visuais dinâmicos conforme o estado de prontidão.
-
-## 🛠️ Stack Tecnológico
-
-### Core
-- **Framework:** Next.js 16 com App Router
-- **Linguagem:** TypeScript 5
-- **Banco de Dados:** SQLite com Prisma ORM
-- **Styling:** Tailwind CSS 4
-- **UI Components:** shadcn/ui (New York style)
-
-### Bibliotecas
-- **State Management:** React Hooks (useState, useEffect)
-- **Formulários:** Formulários nativos HTML
-- **Ícones:** Lucide React
-
-## 📁 Estrutura do Projeto
-
-```
-nexus-core/
-├── prisma/
-│   └── schema.prisma          # Schema do banco de dados
-├── src/
-│   ├── app/
-│   │   ├── api/
-│   │   │   └── users/
-│   │   │       ├── [id]/
-│   │   │       │   ├── conditions/
-│   │   │       │   ├── pharmacology/
-│   │   │       │   ├── training/
-│   │   │       │   ├── biomarkers/
-│   │   │       │   ├── readiness/
-│   │   │       │   └── dashboard/
-│   │   │       └── route.ts
-│   │   ├── page.tsx            # Dashboard principal
-│   │   ├── layout.tsx
-│   │   └── globals.css
-│   ├── components/
-│   │   └── ui/                 # Componentes shadcn/ui
-│   └── lib/
-│       ├── db.ts               # Cliente Prisma
-│       └── math-engine.ts      # Motor matemático
-└── db/
-    └── custom.db               # Banco de dados SQLite
-```
-
-## 🗄️ Modelo de Dados
-
-### Tabelas Principais
-
-1. **User:** Dados biométricos e histórico base
-2. **UserCondition:** Patologias e restrições (Constraints)
-3. **PharmacologyLog:** Registros de administração química
-4. **TrainingSession:** Sessões de treino com cálculos automáticos
-5. **BiomarkerLog:** Exames de sangue e bioimpedância
-6. **DailyReadiness:** Leituras diárias de prontidão
-
-## 🚀 Como Usar
-
-### 1. Criar um Usuário
-1. Clique em "Novo Usuário"
-2. Preencha os dados biométricos básicos (nome, email, altura, peso, etc.)
-3. Defina o nível de treinamento
-
-### 2. Registrar Sessão de Treino
-1. Selecione a aba "Treinos"
-2. Clique em "Nova Sessão"
-3. Preencha:
-   - Data e tipo de sessão
-   - Exercícios (nome, séries, repetições, carga)
-   - % 1RM (opcional para cálculo de INOL)
-   - Esforço percebido
-
-**O sistema calculará automaticamente:**
-- Tonagem total
-- INOL por exercício e total
-- ACWR com análise de risco
-
-### 3. Monitorar Farmacologia
-1. Selecione a aba "Farmacologia"
-2. Clique em "Novo Log"
-3. Informe:
-   - Nome da substância
-   - Dosagem em mg
-   - Meia-vida em horas
-   - Data/hora de administração
-
-**O sistema calculará:**
-- Concentração plasmática atual
-- Porcentagem remanescente
-- Nível de impacto na performance
-- Recomendações para treinos de força
-
-### 4. Registrar Exames (Biomarcadores)
-1. Selecione a aba "Biomarcadores"
-2. Clique em "Novo Exame"
-3. Informe:
-   - Data e tipo de exame
-   - Valores dos biomarcadores (CPK, Ângulo de Fase, etc.)
-   - Condições do teste (jejum, hidratação, etc.)
-
-**O sistema analisará:**
-- Nível de cada biomarcador
-- Alertas automáticos para valores fora da faixa normal
-- Recomendações baseadas na literatura científica
-- Score de confiabilidade do exame
-
-### 5. Monitorar Prontidão Diária
-1. Selecione a aba "Prontidão"
-2. Clique em "Novo Registro"
-3. Avalie:
-   - Horas e qualidade do sono
-   - Nível de energia
-   - Estado mental
-   - Nível de estresse
-   - Dor muscular
-
-**O sistema calculará:**
-- Wellness Score (média ponderada das métricas)
-- Tendência de recuperação
-
-## 📐 Fórmulas do Motor Matemático
-
-### Volume Load (Tonagem)
-```
-Tonagem = Σ (Séries × Repetições × Carga em kg)
-```
-
-### INOL (Fadiga Neural)
-```
-INOL = Repetições / (100 - %1RM)
-```
-- Valores diários > 1.0 acionam mitigação de volume
-
-### ACWR (Acute:Chronic Workload Ratio)
-```
-ACWR = Carga da Semana Atual / Média de Carga das 4 Semanas Anteriores
-```
-- **> 1.5:** Risco exponencial de ruptura/overtraining
-- **1.0 - 1.5:** Risco moderado
-- **0.8 - 1.0:** Zona segura
-- **< 0.8:** Possível destreinamento
-
-### Farmacocinética
-```
-C(t) = C0 × (1/2)^(t / t_meia)
-```
-Onde:
-- C(t) = Concentração atual
-- C0 = Dose inicial (mg)
-- t = Tempo decorrido
-- t_meia = Meia-vida
-
-### Wellness Score
-```
-Wellness = Média das métricas (sono, energia, mental)
-          - Média inversa de (dor, estresse)
-```
-
-## 🔧 API Endpoints
-
-### Usuários
-- `GET /api/users` - Listar todos os usuários
-- `POST /api/users` - Criar novo usuário
-- `GET /api/users/[id]` - Obter usuário por ID
-- `PUT /api/users/[id]` - Atualizar usuário
-- `DELETE /api/users/[id]` - Deletar usuário
-
-### Condições Médicas
-- `GET /api/users/[id]/conditions` - Listar condições
-- `POST /api/users/[id]/conditions` - Criar condição
-
-### Treinos
-- `GET /api/users/[id]/training` - Listar sessões
-- `POST /api/users/[id]/training` - Criar sessão com cálculos
-
-### Farmacologia
-- `GET /api/users/[id]/pharmacology` - Listar logs + farmacocinética
-- `POST /api/users/[id]/pharmacology` - Criar log
-
-### Biomarcadores
-- `GET /api/users/[id]/biomarkers` - Listar exames
-- `POST /api/users/[id]/biomarkers` - Criar exame com análise
-
-### Prontidão
-- `GET /api/users/[id]/readiness` - Listar registros
-- `POST /api/users/[id]/readiness` - Criar registro
-
-### Dashboard
-- `GET /api/users/[id]/dashboard` - Métricas consolidadas
-
-## 🎨 Interface do Usuário
-
-### Status Indicadores
-- 🟢 **Ótimo (Optimal):** Todas as métricas dentro da faixa normal
-- 🟡 **Atenção (Attention):** Um ou mais fatores de risco moderados
-- 🔴 **Preocupante (Concern):** Múltiplos fatores de risco ou críticos
-
-### Níveis de Risco ACWR
-- **Safe:** < 0.8 ou 0.8 - 1.0
-- **Moderate:** 1.0 - 1.3
-- **High:** 1.3 - 1.5
-- **Very High:** > 1.5
-
-## 📱 Parser de Saída (WhatsApp)
-
-O sistema gera automaticamente resumos em linguagem natural:
-
-```
-📊 Tonagem total: 14,500 kg (+4.0%)
-⚖️ ACWR em 1.1 (Zona Segura)
-🧬 Ângulo de fase: 6.8° (Integridade Celular Excelente)
-💪 CPK: 250 U/L (Normal)
-😊 Wellness Score: 7.5/10 (Bom)
-```
-
-## 🔬 Tratamento de Viéses
-
-### 1. Viés da Subjetividade
-Se biomarcadores objetivos contradizem relatos subjetivos, o sistema aplica:
-- 80% peso para dados objetivos
-- 20% peso para dados subjetivos
-
-### 2. Viés de Hidratação
-Para bioimpedância, o sistema valida:
-- Status de jejum
-- Ausência de treino nas últimas 24h
-- Nível de hidratação
-- Ajusta score de confiabilidade automaticamente
-
-### 3. Metabolização Individual
-O sistema recalibra a meia-vida específica para cada usuário baseado em exames seriados.
-
-## 🚀 Desenvolvimento
-
-### Instalar Dependências
-```bash
-bun install
-```
-
-### Executar Servidor de Desenvolvimento
-```bash
-bun run dev
-```
-
-### Push do Schema do Banco
-```bash
-bun run db:push
-```
-
-### Lint
-```bash
-bun run lint
-```
-
-## 📊 Próximos Passos
-
-- [ ] Integração com WhatsApp API para notificações
-- [ ] Gráficos de tendência temporal
-- [ ] Exportação de relatórios em PDF
-- [ ] Sistema de metas e progresso
-- [ ] Integração com wearables
-- [ ] Machine Learning para previsão de performance
-
-## 👨‍💻 Autor
-
-**Argeu Rodrigues**  
-Estudante de Análise e Desenvolvimento de Sistemas (3º Semestre)  
-*Universidade Anhembi Morumbi*  
+O **Nexus Core** transcende os rastreadores tradicionais de fitness. É uma plataforma *Deep HealthTech* desenhada para orquestrar a carga de treinamento, recuperação fisiológica e vigilância sindrômica de atletas de alto rendimento. Operando em uma arquitetura *Closed-Loop*, o sistema cruza estresse mecânico, farmacodinâmica e biomarcadores para fornecer **Explainable AI (XAI)** aos profissionais de saúde.
 
 ---
 
-**Nexus Core** - Engenharia de Software a Serviço da Performance Humana
+## 🚀 Proposta de Valor (Business & Clinical)
+
+- **Prevenção Preditiva (Syndrome Sweeper):** Algoritmos rodam em background cruzando Carga Aguda vs Crônica (ACWR), Biomarcadores (ex: CPK) e Fármacos para prever patologias (ex: Rabdomiólise Subclínica).
+- **Explainable AI (XAI):** Eliminação do efeito "caixa-preta". Gráficos multiparamétricos de eixos duplos correlacionam visualmente picos de treinamento com risco de lesão tecidual.
+- **Atuação Ciber-Preventiva (Closed-Loop):** Integração Event-Driven via Webhooks (Evolution API) para notificar o corpo clínico via WhatsApp no exato milissegundo em que uma síndrome crítica é detectada.
+- **Conformidade B2B2C (Tenant Isolation):** Arquitetura Multi-Tenant com Role-Based Access Control (RBAC), isolando rigorosamente os dados de pacientes por clínica.
+
+---
+
+## 🛠️ Stack Tecnológico (Enterprise-Grade)
+
+- **Core & Routing:** Next.js 16.1 (App Router, Turbopack, Server Actions)
+- **Database:** PostgreSQL (Neon DB / Supabase) tolerante a ACID.
+- **ORM & Type Safety:** Prisma ORM + TypeScript estrito.
+- **Autenticação & RBAC:** Auth.js v5 (NextAuth) com Prisma Adapter integrado na Borda (Middleware).
+- **Data Visualization:** Recharts (ComposedCharts com Tooltips Clínicos Dinâmicos).
+- **Styling & UI:** Tailwind CSS 4 + shadcn/ui (Dark Mode Native / Mobile-First PWA).
+- **Integrações Externas:** OpenFDA (Farmacodinâmica) e Evolution API (Mensageria).
+
+---
+
+## ✨ Módulos e Funcionalidades
+
+### 1. 📱 Morning Check-In (PWA de Ingestão)
+Interface Mobile-First de atrito zero para registro diário de Prontidão (Wellness Score) e Farmacologia. Inclui o recurso "1-Click Refill" para replicar prescrições crônicas via Prisma Transactions.
+
+### 2. 🏥 Dashboard de Gestão Clínica (B2B)
+Ambiente restrito via Middleware para Médicos e Fisiologistas. Listagem real-time de atletas vinculados à franquia, alimentada por Server Actions atômicas.
+
+### 3. 🔍 Drill-Down Clínico Singular (Prontuário XAI)
+Página dinâmica de telemetria individual. Renderiza o `MultiparametricChart` cruzando Tonagem, Nível de Recuperação e Concentração Plasmática no mesmo eixo temporal, validando os alertas do Motor Preditivo.
+
+---
+
+## 📐 Motor Matemático & Biomédico (Core Engine)
+
+O sistema utiliza modelagem matemática avançada para inferir a degradação fisiológica:
+
+**1. Carga Mecânica e Fadiga Neural:**
+* **Tonagem:** $$\Sigma (\text{Séries} \times \text{Repetições} \times \text{Carga em kg})$$
+* **INOL (Intensity Number of Lifts):** $$\frac{\text{Repetições}}{100 - \%1\text{RM}}$$
+* **ACWR (Acute:Chronic Workload Ratio):** $$\frac{\text{Carga da Semana Atual}}{\text{Média de Carga das 4 Semanas Anteriores}}$$ (Threshold de risco crítico em $> 1.5$).
+
+**2. Farmacocinética Exponencial:**
+* **Concentração Plasmática:** $$C(t) = C_0 \times \left(\frac{1}{2}\right)^{\frac{t}{t_{meia}}}$$
+
+---
+
+## 🚀 Como Executar (Ambiente de Produção Local)
+
+O projeto está otimizado para deploy Serverless (Vercel), mas pode ser rodado localmente com fidelidade total:
+
+```bash
+# 1. Clone o repositório e instale as dependências
+npm install
+
+# 2. Configure as variáveis de ambiente (.env)
+# Necessário: DATABASE_URL (Postgres), DIRECT_URL, AUTH_SECRET
+
+# 3. Construa a tipagem do ORM e aplique o schema no banco
+npx prisma generate
+npx prisma db push
+
+# 4. Gere a Build de Produção (Teste de Fogo)
+npm run build
+
+# 5. Inicie o servidor otimizado
+npm run start
+
+## 📈 Roadmap Arquitetural (Próximas Fases)
+
+O desenvolvimento do Nexus Core segue uma esteira de *Continuous Planning*. As próximas fases visam a maturidade do ecossistema e a integração com o mercado global de HealthTech.
+
+### Fase 11: Ecossistema IoT e Ingestão Passiva
+- [ ] **Integração Wearables API:** Conexão nativa com Oura Ring, Whoop e Apple HealthKit.
+- [ ] **Coleta Invisível:** Ingestão passiva e automática de dados críticos de recuperação (VFC - Variabilidade da Frequência Cardíaca, arquitetura de sono e temperatura basal) direto para o Motor Preditivo, reduzindo ainda mais o atrito do usuário.
+
+### Fase 12: Interoperabilidade Clínica Global (HL7 FHIR)
+- [ ] **Mapeamento Semântico:** Tradução das entidades do Prisma (`BiomarkerObservation`, `PharmacologyLog`) para recursos estritos do padrão internacional FHIR v4.
+- [ ] **EHR Integration:** Criação de endpoints seguros para que sistemas de gestão hospitalar (HIS) possam consumir os alertas preditivos de risco e o dossiê do atleta gerados pelo Nexus Core.
+
+### Fase 13: Geração Documental e Validade Jurídica
+- [ ] **Laudos Dinâmicos (SSR PDF):** Geração server-side de prontuários eletrônicos e relatórios de mitigação de risco em formato PDF utilizando renderização em borda.
+- [ ] **Trilha de Auditoria:** Assinatura digital criptografada e logs de acesso (*Audit Trails*) rigorosos para garantir validade jurídica aos alertas disparados ao corpo clínico.
+
+### Fase 14: Evolução para Machine Learning (ML)
+- [ ] **Modelagem Dinâmica:** Transição parcial de heurísticas estáticas (fórmulas matemáticas fixas) para modelos de *Machine Learning* (Redes Neurais/Regressão).
+- [ ] **Treinamento Contínuo:** O algoritmo passará a aprender os limiares de tolerância à carga específicos de cada paciente (*Patient-Specific Baselines*), personalizando ainda mais o acionamento dos alertas preditivos.
+
+---
+
+### 👨‍💻 Autor & Arquiteto Principal
+
+**Argeu Rodrigues** *Graduando em Análise e Desenvolvimento de Sistemas | Especialista em LPO (Weightlifting) & Performance Humana*
+
+> *"Engenharia de Software aplicada ao limite da Fisiologia Humana."*
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Conectar-0A66C2?style=for-the-badge&logo=linkedin)](https://www.linkedin.com/in/SEU_LINKEDIN_AQUI)
+[![Instagram](https://img.shields.io/badge/Instagram-@argeurodrigueslpo-E4405F?style=for-the-badge&logo=instagram)](https://instagram.com/argeurodrigueslpo)
+[![GitHub](https://img.shields.io/badge/GitHub-Portfólio-181717?style=for-the-badge&logo=github)](https://github.com/SEU_GITHUB_AQUI)
+
+---
+<p align="center">
+  <small>Nexus Core © 2026 - Construído com rigor científico e código escalável.</small>
+</p>
